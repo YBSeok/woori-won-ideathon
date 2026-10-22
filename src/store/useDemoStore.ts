@@ -1,8 +1,11 @@
 import { create } from 'zustand';
-import type { RuleId } from '../engine/rules';
-import { formatManWon } from '../lib/format';
+import { inspectUtterance, maskUtterance, type GuardResult } from '../engine/guard';
+import { mockInterpret, toPurposeId, validateIntent, type InterpretResult } from '../engine/interpret';
+import { horizonFromDate, type RuleId } from '../engine/rules';
+import { buildSplitPlan, type SplitLeg } from '../engine/split';
+import { formatKoreanDate, formatManWon } from '../lib/format';
 import type { PurposeId, TimingId } from '../mock/chatScripts';
-import { getPersona, type PersonaId } from '../mock/personas';
+import { DEMO_TODAY, getPersona, type PersonaId } from '../mock/personas';
 import { getProduct, REDEPOSIT_ID } from '../mock/products';
 
 export type ChatMessage = {
@@ -11,7 +14,7 @@ export type ChatMessage = {
   text: string;
 };
 
-export type ChatStep = 'timing' | 'purpose' | 'date' | 'closing' | 'handoff';
+export type ChatStep = 'timing' | 'purpose' | 'date' | 'interpret' | 'closing' | 'handoff';
 
 export type InvestFlags = {
   profile: boolean;
@@ -31,7 +34,7 @@ export type ExplainChecks = {
 export type Completion = {
   type: 'product';
   productId: string;
-  via: 'deposit' | 'invest' | 'no-response';
+  via: 'deposit' | 'invest' | 'no-response' | 'split';
 } | null;
 
 type DemoState = {
@@ -55,6 +58,14 @@ type DemoState = {
   consents: string[];
   investInquiry: boolean;
   toast: string | null;
+  utterance: string | null;
+  maskedUtterance: string | null;
+  guard: GuardResult | null;
+  interpret: InterpretResult | null;
+  validationNotes: string[];
+  intentConfirmed: boolean;
+  confirmedAt: string | null;
+  splitLegs: SplitLeg[] | null;
   selectPersona: (id: PersonaId) => void;
   setEnginePanelEnabled: (on: boolean) => void;
   setEnginePanelExpanded: (on: boolean) => void;
@@ -73,8 +84,13 @@ type DemoState = {
   setHandoff: (reason: RuleId) => void;
   setHandoffNote: (note: string) => void;
   addConsent: (line: string) => void;
-  complete: (via: 'deposit' | 'invest' | 'no-response', productId?: string) => void;
+  complete: (via: 'deposit' | 'invest' | 'no-response' | 'split', productId?: string) => void;
   showToast: (message: string) => void;
+  submitUtterance: (text: string) => void;
+  answerIntentDate: (index: number, date: string) => void;
+  answerIntentTiming: (index: number, label: string) => void;
+  confirmIntent: () => boolean;
+  reviseIntent: () => void;
 };
 
 const emptyInvest = (): InvestFlags => ({
@@ -126,6 +142,14 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   consents: [],
   investInquiry: false,
   toast: null,
+  utterance: null,
+  maskedUtterance: null,
+  guard: null,
+  interpret: null,
+  validationNotes: [],
+  intentConfirmed: false,
+  confirmedAt: null,
+  splitLegs: null,
   selectPersona: (id) => {
     const persona = getPersona(id);
     messageSeq = 0;
@@ -147,6 +171,14 @@ export const useDemoStore = create<DemoState>((set, get) => ({
       completion: null,
       consents: [],
       investInquiry: false,
+      utterance: null,
+      maskedUtterance: null,
+      guard: null,
+      interpret: null,
+      validationNotes: [],
+      intentConfirmed: false,
+      confirmedAt: null,
+      splitLegs: null,
     });
   },
   setEnginePanelEnabled: (on) => set({ enginePanelEnabled: on, enginePanelExpanded: false }),
@@ -178,9 +210,127 @@ export const useDemoStore = create<DemoState>((set, get) => ({
     set({ consents: [...get().consents, line] });
   },
   complete: (via, productId) => {
+    if (via === 'split') {
+      set({ completion: { type: 'product', productId: 'super-deposit', via }, selectedProductId: 'purpose-split' });
+      return;
+    }
     const id = productId ?? get().selectedProductId;
     getProduct(id);
     set({ completion: { type: 'product', productId: id, via }, selectedProductId: id });
+  },
+  submitUtterance: (text) => {
+    const trimmed = text.trim();
+    const personaId = get().personaId;
+    if (!trimmed || !personaId) return;
+    const verdict = inspectUtterance(trimmed);
+    if (!verdict.ok) {
+      get().appendMessage('ai', verdict.message);
+      set({
+        guard: verdict,
+        utterance: null,
+        maskedUtterance: null,
+        interpret: null,
+        validationNotes: [],
+        intentConfirmed: false,
+        splitLegs: null,
+        chatStep: verdict.code === 'GUARD_PROMPT_INJECTION' ? 'timing' : get().chatStep,
+      });
+      return;
+    }
+    const persona = getPersona(personaId);
+    const checked = validateIntent(mockInterpret(trimmed, DEMO_TODAY), persona.principal);
+    if (checked.result.items.length === 0) {
+      get().appendMessage('user', trimmed);
+      get().appendMessage('ai', '잘 이해하지 못했어요. 아래에서 골라 주세요.');
+      set({
+        guard: verdict,
+        utterance: trimmed,
+        maskedUtterance: maskUtterance(trimmed),
+        interpret: null,
+        validationNotes: [],
+        intentConfirmed: false,
+        chatStep: 'timing',
+      });
+      return;
+    }
+    get().appendMessage('user', trimmed);
+    set({
+      guard: verdict,
+      utterance: trimmed,
+      maskedUtterance: maskUtterance(trimmed),
+      interpret: checked.result,
+      validationNotes: checked.fixes,
+      intentConfirmed: false,
+      confirmedAt: null,
+      splitLegs: null,
+      chatStep: 'interpret',
+    });
+  },
+  answerIntentDate: (index, date) => {
+    const current = get().interpret;
+    const personaId = get().personaId;
+    if (!current || !personaId) return;
+    const persona = getPersona(personaId);
+    const items = current.items.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const amount = item.amount ?? (current.items.length === 1 ? persona.principal : item.amount);
+      return { ...item, date, amount, timeText: formatKoreanDate(date), certainty: 'CONFIRMED' as const };
+    });
+    const checked = validateIntent({ ...current, items }, persona.principal);
+    set({ interpret: checked.result, validationNotes: checked.fixes });
+  },
+  answerIntentTiming: (index, label) => {
+    const current = get().interpret;
+    const personaId = get().personaId;
+    if (!current || !personaId) return;
+    const persona = getPersona(personaId);
+    const items = current.items.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const amount = item.amount ?? (current.items.length === 1 ? persona.principal : item.amount);
+      return { ...item, amount, timeText: label, date: undefined, certainty: 'CONFIRMED' as const };
+    });
+    const checked = validateIntent({ ...current, items }, persona.principal);
+    set({ interpret: checked.result, validationNotes: checked.fixes });
+  },
+  confirmIntent: () => {
+    const current = get().interpret;
+    if (!current || current.items.some((item) => item.certainty !== 'CONFIRMED')) return false;
+    const primary = current.items.find((item) => item.purpose === 'TUITION') ?? current.items[0];
+    if (!primary) return false;
+    const purpose = toPurposeId(primary.purpose);
+    const useDate = primary.date;
+    const horizon = useDate
+      ? horizonFromDate(useDate)
+      : primary.timeText.includes('3년')
+        ? 'LONG'
+        : primary.timeText.includes('1~3') || primary.timeText.includes('1년에서')
+          ? 'MID'
+          : primary.timeText.includes('1년')
+            ? 'SHORT'
+            : 'UNKNOWN';
+    const timing: TimingId =
+      horizon === 'SHORT' ? 'WITHIN_6M' : horizon === 'MID' ? 'Y1_3' : horizon === 'LONG' ? 'OVER_3Y' : 'UNKNOWN';
+    set({
+      answers: { timing, purpose, useDate },
+      selectedProductId: REDEPOSIT_ID,
+      splitLegs: buildSplitPlan(current.items),
+      intentConfirmed: true,
+      confirmedAt: `${DEMO_TODAY} 09:41`,
+    });
+    return true;
+  },
+  reviseIntent: () => {
+    set({
+      interpret: null,
+      utterance: null,
+      maskedUtterance: null,
+      guard: null,
+      validationNotes: [],
+      intentConfirmed: false,
+      confirmedAt: null,
+      splitLegs: null,
+      chatStep: 'timing',
+    });
   },
   showToast: (message) => {
     window.clearTimeout(toastTimer);

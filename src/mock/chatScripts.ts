@@ -1,5 +1,5 @@
 export type TimingId = 'WITHIN_6M' | 'Y1_3' | 'OVER_3Y' | 'UNKNOWN';
-export type PurposeId = 'JEONSE' | 'TUITION' | 'RETIREMENT' | 'SPARE' | 'INVEST_INQUIRY';
+export type PurposeId = 'JEONSE' | 'TUITION' | 'RETIREMENT' | 'SPARE' | 'INVEST_INQUIRY' | 'HOUSING';
 
 export type ChipOption = {
   id: string;
@@ -7,7 +7,7 @@ export type ChipOption = {
 };
 
 export const TIMING_CHIPS: ChipOption[] = [
-  { id: 'WITHIN_6M', label: '6개월 안' },
+  { id: 'WITHIN_6M', label: '1년 안' },
   { id: 'Y1_3', label: '1~3년' },
   { id: 'OVER_3Y', label: '3년 이상' },
   { id: 'UNKNOWN', label: '아직 몰라요' },
@@ -27,7 +27,7 @@ export const DATE_CHIPS: ChipOption[] = [
 ];
 
 export const TIMING_LABEL: Record<TimingId, string> = {
-  WITHIN_6M: '6개월 안',
+  WITHIN_6M: '1년 안',
   Y1_3: '1~3년',
   OVER_3Y: '3년 이상',
   UNKNOWN: '아직 모름',
@@ -39,8 +39,9 @@ export const PURPOSE_LABEL: Record<PurposeId, string> = {
   RETIREMENT: '노후',
   SPARE: '여유자금',
   INVEST_INQUIRY: '투자 상품 문의',
+  HOUSING: '내 집 마련',
 };
 
 export function purposeNeedsDate(purpose?: PurposeId): boolean {
-  return purpose === 'JEONSE' || purpose === 'TUITION';
+  return purpose === 'JEONSE' || purpose === 'TUITION' || purpose === 'HOUSING';
 }

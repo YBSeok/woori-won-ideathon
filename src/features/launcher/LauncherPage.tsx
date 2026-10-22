@@ -22,9 +22,7 @@ export function LauncherPage() {
     <div className="h-full overflow-y-auto bg-bg px-5 py-5">
       <p className="text-sm font-semibold text-primary">우리WON뱅킹</p>
       <h1 className="mt-1 text-[26px] font-bold leading-8 text-textStrong">WON하는 만기</h1>
-      <p className="mt-2 text-sm leading-6 text-textBody">
-        만기 자금이 고객이 이해한 만큼만, 우리은행 상품 안에서 다음 자리를 찾게 하는 시연이에요.
-      </p>
+      <p className="mt-2 text-sm leading-6 text-textBody">쓸 날짜와 목표에 맞춰 내 만기 자금이 한 번 더 일하게</p>
       <ul className="mt-4 grid grid-cols-2 gap-2">
         {principles.map(([title, detail]) => (
           <li key={title} className="rounded-card bg-surface px-3 py-2 shadow-card">
@@ -47,6 +45,7 @@ export function LauncherPage() {
             >
               <div className="flex items-center gap-2">
                 <Badge tone="neutral">페르소나 {persona.id}</Badge>
+                {persona.id === 'D' ? <Badge tone="ai">추천 시연</Badge> : null}
                 <span className="text-[15px] font-bold text-textStrong">
                   {persona.name} · {persona.age}세
                 </span>

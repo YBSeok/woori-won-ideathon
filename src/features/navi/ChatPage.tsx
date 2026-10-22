@@ -1,11 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ChatBubble } from '../../components/ui/ChatBubble';
 import { Chip } from '../../components/ui/Chip';
-import { PrimaryButton } from '../../components/ui/Buttons';
+import { PrimaryButton, SecondaryButton } from '../../components/ui/Buttons';
 import { Screen } from '../../components/ui/Screen';
+import { EXAMPLE_UTTERANCES } from '../../engine/interpret';
 import { estimateHorizon, getEligibleOptions, needsHandoff } from '../../engine/rules';
+import { InterpretCard } from './InterpretCard';
 import {
   DATE_CHIPS,
   PURPOSE_CHIPS,
@@ -29,10 +31,19 @@ export function ChatPage() {
   const setChatStep = useDemoStore((state) => state.setChatStep);
   const setAnswers = useDemoStore((state) => state.setAnswers);
   const setHandoff = useDemoStore((state) => state.setHandoff);
+  const interpret = useDemoStore((state) => state.interpret);
+  const validationNotes = useDemoStore((state) => state.validationNotes);
+  const submitUtterance = useDemoStore((state) => state.submitUtterance);
+  const answerIntentDate = useDemoStore((state) => state.answerIntentDate);
+  const answerIntentTiming = useDemoStore((state) => state.answerIntentTiming);
+  const confirmIntent = useDemoStore((state) => state.confirmIntent);
+  const reviseIntent = useDemoStore((state) => state.reviseIntent);
+  const [draft, setDraft] = useState('');
+  const [pickingIndex, setPickingIndex] = useState<number | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' });
-  }, [messages, chatStep]);
+  }, [messages, chatStep, interpret]);
 
   if (!personaId) return null;
   const persona = getPersona(personaId);
@@ -89,6 +100,24 @@ export function ChatPage() {
     finish();
   };
 
+  const sendDraft = () => {
+    const text = draft.trim();
+    if (!text) return;
+    setDraft('');
+    setPickingIndex(null);
+    submitUtterance(text);
+  };
+
+  const acceptIntent = () => {
+    const ok = confirmIntent();
+    if (!ok) return;
+    setPickingIndex(null);
+    finish();
+  };
+
+  const needsConfirm = interpret?.items.some((item) => item.certainty === 'NEEDS_CONFIRM') ?? true;
+  const showSpeech = chatStep === 'timing' || chatStep === 'purpose' || chatStep === 'date';
+
   return (
     <Screen
       title="자금 용도"
@@ -99,6 +128,21 @@ export function ChatPage() {
           <PrimaryButton onClick={() => navigate('/navi/options')}>선택지 보기</PrimaryButton>
         ) : chatStep === 'handoff' ? (
           <PrimaryButton onClick={() => navigate('/navi/handoff')}>전문가에게 연결</PrimaryButton>
+        ) : chatStep === 'interpret' ? (
+          <div className="space-y-2">
+            <PrimaryButton disabled={needsConfirm} onClick={acceptIntent}>
+              이대로 맞아요
+            </PrimaryButton>
+            <SecondaryButton
+              onClick={() => {
+                reviseIntent();
+                setPickingIndex(null);
+                appendMessage('ai', '다시 말씀해 주시거나 아래에서 골라 주세요.');
+              }}
+            >
+              고칠게요
+            </SecondaryButton>
+          </div>
         ) : (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2">
@@ -114,7 +158,35 @@ export function ChatPage() {
                 ? DATE_CHIPS.map((chip) => <Chip key={chip.id} label={chip.label} onClick={() => onDate(chip.id)} />)
                 : null}
             </div>
-            {persona.id !== 'A' && (chatStep === 'timing' || chatStep === 'purpose') ? (
+            {showSpeech ? (
+              <div className="space-y-2">
+                <p className="text-[12px] font-semibold text-textWeak">직접 말하기</p>
+                <div className="flex flex-wrap gap-2">
+                  {['학비 반, 나머지는 이사', '내년 봄쯤 이사', '몇 년 묵혀 둘 돈'].map((label, index) => (
+                    <Chip key={label} label={label} onClick={() => setDraft(EXAMPLE_UTTERANCES[index] ?? '')} />
+                  ))}
+                </div>
+                <form
+                  className="flex gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    sendDraft();
+                  }}
+                >
+                  <input
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    aria-label="직접 말하기"
+                    placeholder="평소 말투로 적어 주세요"
+                    className="min-h-tap min-w-0 flex-1 rounded-button border border-line bg-surface px-3 text-sm text-textStrong"
+                  />
+                  <button type="submit" className="min-h-tap shrink-0 rounded-button bg-primary px-3 text-sm font-semibold text-white">
+                    보내기
+                  </button>
+                </form>
+              </div>
+            ) : null}
+            {persona.id !== 'A' && persona.id !== 'D' && (chatStep === 'timing' || chatStep === 'purpose') ? (
               <button type="button" onClick={askInvest} className="min-h-tap text-sm font-semibold text-primary">
                 투자 상품이 궁금해요
               </button>
@@ -129,6 +201,19 @@ export function ChatPage() {
             <ChatBubble role={message.role}>{message.text}</ChatBubble>
           </motion.div>
         ))}
+        {chatStep === 'interpret' && interpret ? (
+          <InterpretCard
+            items={interpret.items}
+            notes={validationNotes}
+            pickingIndex={pickingIndex}
+            onPickDate={(index, date) => {
+              answerIntentDate(index, date);
+              setPickingIndex(null);
+            }}
+            onPickTiming={(index, label) => answerIntentTiming(index, label)}
+            onAskCustomDate={setPickingIndex}
+          />
+        ) : null}
         <div ref={bottomRef} />
       </div>
     </Screen>

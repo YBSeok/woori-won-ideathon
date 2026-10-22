@@ -1,6 +1,6 @@
 import type { PurposeId, TimingId } from '../mock/chatScripts';
 import { PURPOSE_LABEL, TIMING_LABEL } from '../mock/chatScripts';
-import type { Persona } from '../mock/personas';
+import { DEMO_TODAY, type Persona } from '../mock/personas';
 import { INVEST_ID, PRODUCTS, REDEPOSIT_ID, getProduct, type CatalogProduct } from '../mock/products';
 import { formatKoreanDate } from '../lib/format';
 
@@ -12,25 +12,52 @@ export type RuleId =
   | 'RULE_SUITABILITY_ONLY'
   | 'RULE_ELDERLY_HANDOFF'
   | 'RULE_QUIZ_FAIL_HANDOFF'
-  | 'RULE_COOLING_OFF';
+  | 'RULE_COOLING_OFF'
+  | 'RULE_SPLIT_BY_PURPOSE'
+  | 'RULE_HIGH_BALANCE_PB';
 
 export const ELDERLY_AGE = 65;
 export const QUIZ_FAIL_LIMIT = 2;
 export const DIAGNOSIS_VALID_DAYS = 365;
+export const HIGH_BALANCE_THRESHOLD = 100_000_000;
 
 export const RULE_COPY: Record<RuleId, string> = {
   RULE_DEFAULT_REDEPOSIT: '재예치는 항상 첫 번째 선택지이자 기본 선택이에요.',
-  RULE_SHORT_TERM_NO_INVEST: '6개월 안에 쓸 돈이라 투자 상품은 제외했어요.',
+  RULE_SHORT_TERM_NO_INVEST: '1년 안에 쓸 돈이라 투자 상품은 제외했어요.',
   RULE_SUITABILITY_ONLY: '투자성향이 맞지 않거나 진단이 없으면 투자 상품은 보여 드리지 않아요.',
   RULE_ELDERLY_HANDOFF: '만 65세 이상이 투자 상품을 물으면 영업점 PB·상담원에게 연결해요.',
   RULE_QUIZ_FAIL_HANDOFF: '같은 이해도 문항을 2번 틀리면 사람 연결로 바꿔요.',
   RULE_COOLING_OFF: '투자성 상품은 숙려 다음 날 최종 승인해요. 답이 없으면 재예치로 가요.',
+  RULE_SPLIT_BY_PURPOSE: '목적이 둘 이상이면 쓰는 날에 맞춰 예금을 나눠요.',
+  RULE_HIGH_BALANCE_PB: '원금이 1억 원 이상이면 Two Chairs PB 상담을 먼저 안내해요.',
 };
 
 export const LLM_SCOPE = {
-  does: ['질문 생성', '설명 문장 생성'],
+  does: ['발화 해석', '문장 생성'],
   doesNot: ['상품 결정', '수치 생성', '거래 실행'],
 } as const;
+
+export const HORIZON_LABEL: Record<Horizon, string> = {
+  SHORT: '1년 안',
+  MID: '1~3년',
+  LONG: '3년 이상',
+  UNKNOWN: '미정',
+};
+
+export function monthsUntil(useDate: string, today = DEMO_TODAY): number {
+  const [y1, m1, d1] = today.split('-').map(Number);
+  const [y2, m2, d2] = useDate.split('-').map(Number);
+  let months = (y2 - y1) * 12 + (m2 - m1);
+  if (d2 < d1) months -= 1;
+  return months;
+}
+
+export function horizonFromDate(useDate: string, today = DEMO_TODAY): Horizon {
+  const months = monthsUntil(useDate, today);
+  if (months < 12) return 'SHORT';
+  if (months <= 36) return 'MID';
+  return 'LONG';
+}
 
 export type Answers = {
   timing?: TimingId;
@@ -67,10 +94,11 @@ const INVEST_SUITABLE: Persona['riskProfile'][] = ['안정추구형'];
 
 export function estimateHorizon(answers: Answers): { horizon: Horizon; useDate?: string } {
   const useDate = answers.useDate && answers.useDate !== 'unknown' ? answers.useDate : undefined;
-  if (answers.timing === 'WITHIN_6M') return { horizon: 'SHORT', useDate };
-  if (answers.timing === 'Y1_3') return { horizon: 'MID', useDate };
-  if (answers.timing === 'OVER_3Y') return { horizon: 'LONG', useDate };
-  return { horizon: 'UNKNOWN', useDate };
+  if (useDate) return { horizon: horizonFromDate(useDate), useDate };
+  if (answers.timing === 'WITHIN_6M') return { horizon: 'SHORT' };
+  if (answers.timing === 'Y1_3') return { horizon: 'MID' };
+  if (answers.timing === 'OVER_3Y') return { horizon: 'LONG' };
+  return { horizon: 'UNKNOWN' };
 }
 
 export function isInvestSuitable(persona: Pick<Persona, 'riskProfile'>): boolean {
@@ -81,7 +109,7 @@ function horizonLabel(horizon: Horizon, useDate?: string): string {
   if (horizon === 'SHORT') {
     return useDate
       ? `자금 기간이 짧고, 사용 예정일이 ${formatKoreanDate(useDate)}이에요.`
-      : '6개월 안에 쓸 돈이에요.';
+      : '1년 안에 쓸 돈이에요.';
   }
   if (horizon === 'MID') return '1년에서 3년 사이에 쓸 돈이에요.';
   if (horizon === 'LONG') return '3년 이상 쓰지 않아도 되는 돈이에요.';
@@ -111,35 +139,40 @@ function toOption(product: CatalogProduct, reasons: string[], procedure: string,
 
 type ChoiceContext = {
   purpose?: PurposeId;
+  split?: boolean;
 };
 
 function situationLine(name: string, horizon: Horizon, useDate?: string, purpose?: PurposeId): string {
   const date = useDate ? formatKoreanDate(useDate) : '';
   if (purpose === 'JEONSE') {
-    if (horizon === 'SHORT' && date) return `${name}님, 6개월 안에 전세·이사 자금이 필요하고 ${date}에 전세 잔금을 쓰신다고 하셨어요.`;
-    if (horizon === 'SHORT') return `${name}님, 6개월 안에 전세·이사 자금이 필요하다고 하셨어요.`;
+    if (horizon === 'SHORT' && date) return `${name}님, 1년 안에 전세·이사 자금이 필요하고 ${date}에 전세 잔금을 쓰신다고 하셨어요.`;
+    if (horizon === 'SHORT') return `${name}님, 1년 안에 전세·이사 자금이 필요하다고 하셨어요.`;
     if (date) return `${name}님, ${date}에 전세 잔금을 쓰신다고 하셨어요.`;
     return `${name}님, 전세·이사 자금으로 쓰실 계획이라고 하셨어요.`;
   }
   if (purpose === 'TUITION') {
-    if (horizon === 'SHORT' && date) return `${name}님, 6개월 안에 학비가 필요하고 ${date}에 그 학비를 쓰신다고 하셨어요.`;
-    if (horizon === 'SHORT') return `${name}님, 6개월 안에 학비가 필요하다고 하셨어요.`;
+    if (horizon === 'SHORT' && date) return `${name}님, 1년 안에 학비가 필요하고 ${date}에 그 학비를 쓰신다고 하셨어요.`;
+    if (horizon === 'SHORT') return `${name}님, 1년 안에 학비가 필요하다고 하셨어요.`;
     if (date) return `${name}님, ${date}에 학비를 쓰신다고 하셨어요.`;
     return `${name}님, 학비로 쓰실 계획이라고 하셨어요.`;
   }
   if (purpose === 'SPARE') {
     if (horizon === 'LONG') return `${name}님, 3년 이상 쓰지 않아도 되는 여유자금이라고 하셨어요.`;
     if (horizon === 'MID') return `${name}님, 1년에서 3년 정도는 급하지 않은 여유자금이라고 하셨어요.`;
-    if (horizon === 'SHORT') return `${name}님, 여유자금이지만 6개월 안에는 쓰실 수도 있다고 하셨어요.`;
+    if (horizon === 'SHORT') return `${name}님, 여유자금이지만 1년 안에는 쓰실 수도 있다고 하셨어요.`;
     return `${name}님, 여유자금으로 생각하시지만 언제 쓸지는 아직 정하지 않으셨어요.`;
   }
   if (purpose === 'RETIREMENT') {
     if (horizon === 'LONG') return `${name}님, 노후 자금으로 3년 이상 두셔도 된다고 하셨어요.`;
     if (horizon === 'MID') return `${name}님, 노후를 위해 1년에서 3년은 두실 수 있다고 하셨어요.`;
-    if (horizon === 'SHORT') return `${name}님, 노후 자금이지만 6개월 안에 필요하실 수도 있다고 하셨어요.`;
+    if (horizon === 'SHORT') return `${name}님, 노후 자금이지만 1년 안에 필요하실 수도 있다고 하셨어요.`;
     return `${name}님, 노후 자금으로 생각하시지만 시기는 아직 정하지 않으셨어요.`;
   }
-  if (horizon === 'SHORT') return `${name}님, 이 돈을 6개월 안에 쓰신다고 하셨어요.`;
+  if (purpose === 'HOUSING') {
+    if (date) return `${name}님, 내 집 마련 자금으로 ${date}에 쓰신다고 하셨어요.`;
+    return `${name}님, 내 집 마련 자금으로 쓰실 계획이라고 하셨어요.`;
+  }
+  if (horizon === 'SHORT') return `${name}님, 이 돈을 1년 안에 쓰신다고 하셨어요.`;
   if (horizon === 'MID') return `${name}님, 이 돈을 1년에서 3년 사이에 쓰신다고 하셨어요.`;
   if (horizon === 'LONG') return `${name}님, 이 돈을 3년 이상 두셔도 된다고 하셨어요.`;
   return `${name}님, 이 돈을 언제 쓸지는 아직 정하지 않으셨어요.`;
@@ -225,12 +258,14 @@ function investProcedure(): string {
 }
 
 export function getEligibleOptions(
-  persona: Pick<Persona, 'riskProfile' | 'name'>,
+  persona: Pick<Persona, 'riskProfile' | 'name'> & { principal?: number },
   horizon: Horizon,
   useDate?: string,
   context: ChoiceContext = {},
 ): { options: Option[]; appliedRules: RuleId[]; excluded: ExcludedProduct[]; heard: string; decision: string } {
   const appliedRules: RuleId[] = ['RULE_DEFAULT_REDEPOSIT'];
+  if ((persona.principal ?? 0) >= HIGH_BALANCE_THRESHOLD) appliedRules.push('RULE_HIGH_BALANCE_PB');
+  if (context.split) appliedRules.push('RULE_SPLIT_BY_PURPOSE');
   const excluded: ExcludedProduct[] = [];
   const profileLine = `투자성향은 ${persona.riskProfile}이에요.`;
   const timeLine = horizonLabel(horizon, useDate);

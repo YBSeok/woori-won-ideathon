@@ -3,8 +3,8 @@ import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
 import { SecondaryButton } from '../../components/ui/Buttons';
 import { Screen } from '../../components/ui/Screen';
-import { RULE_COPY, estimateHorizon, getEligibleOptions } from '../../engine/rules';
-import { PURPOSE_LABEL, TIMING_LABEL } from '../../mock/chatScripts';
+import { HORIZON_LABEL, RULE_COPY, estimateHorizon, getEligibleOptions } from '../../engine/rules';
+import { PURPOSE_LABEL } from '../../mock/chatScripts';
 import { DEMO_TODAY, getPersona } from '../../mock/personas';
 import { getProduct } from '../../mock/products';
 import { useDemoStore } from '../../store/useDemoStore';
@@ -15,11 +15,18 @@ export function DonePage() {
   const completion = useDemoStore((state) => state.completion);
   const answers = useDemoStore((state) => state.answers);
   const consents = useDemoStore((state) => state.consents);
+  const maskedUtterance = useDemoStore((state) => state.maskedUtterance);
+  const interpret = useDemoStore((state) => state.interpret);
+  const confirmedAt = useDemoStore((state) => state.confirmedAt);
+  const splitLegs = useDemoStore((state) => state.splitLegs);
   if (!personaId || !completion) return null;
   const persona = getPersona(personaId);
   const product = getProduct(completion.productId);
   const estimated = estimateHorizon(answers);
-  const result = getEligibleOptions(persona, estimated.horizon, estimated.useDate, { purpose: answers.purpose });
+  const result = getEligibleOptions(persona, estimated.horizon, estimated.useDate, {
+    purpose: answers.purpose,
+    split: Boolean(splitLegs && splitLegs.length >= 2),
+  });
   const chosen = result.options.find((option) => option.productId === product.id);
 
   const headline =
@@ -27,25 +34,50 @@ export function DonePage() {
       ? '응답이 없어 재예치로 진행했어요.'
       : completion.via === 'invest'
         ? '투자 상품 가입까지 마쳤어요.'
-        : '예금 쪽으로 실행을 마쳤어요.';
+        : completion.via === 'split'
+          ? '쓰는 날에 맞춰 예금 두 건으로 나눴어요.'
+          : '예금 쪽으로 실행을 마쳤어요.';
 
   const events = [
     { title: '만기 감지', detail: `${DEMO_TODAY}에 D-30 알림을 띄웠어요.` },
     {
       title: '자금 용도',
       detail: answers.timing
-        ? `${TIMING_LABEL[answers.timing]} · ${answers.purpose ? PURPOSE_LABEL[answers.purpose] : '용도 미입력'}${
+        ? `${HORIZON_LABEL[estimated.horizon]} · ${answers.purpose ? PURPOSE_LABEL[answers.purpose] : '용도 미입력'}${
             estimated.useDate ? ` · ${estimated.useDate}` : ''
           }`
         : '대화를 거치지 않은 경로예요.',
     },
+    ...(maskedUtterance
+      ? [
+          { title: '자유 발화 원문', detail: maskedUtterance },
+          {
+            title: 'AI 해석 결과',
+            detail: interpret
+              ? JSON.stringify(
+                  interpret.items.map((item) => ({
+                    purpose: item.purpose,
+                    amount: item.amount,
+                    date: item.date,
+                    timeText: item.timeText,
+                    certainty: item.certainty,
+                  })),
+                )
+              : '저장된 해석이 없어요.',
+          },
+          { title: '고객 확인 시각', detail: confirmedAt ?? '확인 시각이 없어요.' },
+        ]
+      : []),
     {
       title: '본 선택지',
       detail: result.options.map((option) => option.name).join(' / '),
     },
     {
       title: '제안 근거',
-      detail: chosen?.guide ?? '재예치 기본 규칙을 적용했어요.',
+      detail:
+        completion.via === 'split'
+          ? '목적이 둘이라 쓰는 날에 맞춰 예금 두 건으로 나눴어요. 중도해지 없이 찾을 수 있어요.'
+          : (chosen?.guide ?? '재예치 기본 규칙을 적용했어요.'),
     },
     {
       title: '적용된 규칙',
@@ -60,7 +92,9 @@ export function DonePage() {
       detail:
         completion.via === 'no-response'
           ? '고객 응답 없이 사전 동의된 재예치를 실행했어요.'
-          : `${product.name}으로 데모 실행을 기록했어요.`,
+          : completion.via === 'split' && splitLegs
+            ? splitLegs.map((leg) => `${leg.purposeLabel} ${leg.amount.toLocaleString('ko-KR')}원 · ${leg.date} · ${leg.productName}`).join(' / ')
+            : `${product.name}으로 데모 실행을 기록했어요.`,
     },
   ];
 
@@ -72,7 +106,9 @@ export function DonePage() {
       footer={<SecondaryButton onClick={() => navigate('/')}>다른 고객 시연</SecondaryButton>}
     >
       <h2 className="text-xl font-bold leading-7 text-textStrong">{headline}</h2>
-      <p className="mt-2 text-sm leading-6 text-textBody">{persona.name}님 · {product.name}</p>
+      <p className="mt-2 text-sm leading-6 text-textBody">
+        {persona.name}님 · {completion.via === 'split' ? '우리 SUPER 정기예금 2건' : product.name}
+      </p>
       <Card className="mt-4">
         <div className="flex items-center gap-2">
           <Badge tone="neutral">기록 보기</Badge>

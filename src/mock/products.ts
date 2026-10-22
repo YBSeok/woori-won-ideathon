@@ -83,6 +83,25 @@ export const PRODUCTS: CatalogProduct[] = [
   },
 ];
 
+export const HOUSING_INFO = [
+  {
+    id: 'housing-subscription',
+    name: '주택청약종합저축',
+    summary: '내 집 마련이 목표면 청약 저축을 함께 살펴볼 수 있어요. 가입 조건은 상품 안내를 확인해요.',
+  },
+  {
+    id: 'youth-housing-dream',
+    name: '청년 주택드림 청약통장',
+    summary: '청년의 주택 마련 자금을 모으는 청약 통장이에요. 가입 조건은 상품 안내를 확인해요.',
+  },
+] as const;
+
+export const PIPELINE_PRODUCT = {
+  id: 'first-prefer-deposit',
+  name: '우리 첫거래우대 정기예금',
+  note: '3단계(타행 만기 자금) 연결 예정 상품',
+} as const;
+
 export function getProduct(id: string): CatalogProduct {
   const found = PRODUCTS.find((product) => product.id === id);
   if (!found) throw new Error(`unknown product ${id}`);

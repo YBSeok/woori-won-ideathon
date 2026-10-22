@@ -5,7 +5,7 @@ import { ListItem } from '../../components/ui/ListItem';
 import { PrimaryButton, SecondaryButton } from '../../components/ui/Buttons';
 import { Screen } from '../../components/ui/Screen';
 import { RULE_COPY } from '../../engine/rules';
-import { BRANCHES } from '../../mock/branches';
+import { BRANCHES, TWO_CHAIRS } from '../../mock/branches';
 import { getPersona } from '../../mock/personas';
 import { REDEPOSIT_ID } from '../../mock/products';
 import { useDemoStore } from '../../store/useDemoStore';
@@ -45,9 +45,11 @@ export function HandoffPage() {
         {persona.name}님은 {persona.age}세 · {persona.riskProfile}이에요. 취약 고객의 투자 결정은 사람이 이어받아요.
       </p>
       {reason ? <p className="mt-3 rounded-card bg-primary/10 px-4 py-3 text-sm leading-6 text-primary">{RULE_COPY[reason]}</p> : null}
-      <h3 className="mb-1 mt-5 text-sm font-bold text-textStrong">가까운 영업점 PB 상담</h3>
+      <h3 className="mb-1 mt-5 text-sm font-bold text-textStrong">
+        {reason === 'RULE_HIGH_BALANCE_PB' ? 'Two Chairs PB 상담' : '가까운 영업점 PB 상담'}
+      </h3>
       <Card className="p-0 px-4">
-        {BRANCHES.map((branch) => (
+        {(reason === 'RULE_HIGH_BALANCE_PB' ? TWO_CHAIRS : BRANCHES).map((branch) => (
           <ListItem
             key={branch.id}
             title={branch.name}

@@ -1,4 +1,4 @@
-export type PersonaId = 'A' | 'B' | 'C';
+export type PersonaId = 'A' | 'B' | 'C' | 'D';
 
 export type RiskProfile = '안정형' | '안정추구형' | '미진단';
 
@@ -20,6 +20,19 @@ export const DEMO_TODAY = '2026-10-22';
 
 export const PERSONAS: Persona[] = [
   {
+    id: 'D',
+    name: '정하늘',
+    age: 39,
+    riskProfile: '안정형',
+    diagnosedAt: '2026-08-01',
+    productName: '정기예금',
+    principal: 30_000_000,
+    maturityDate: '2026-11-21',
+    annualRate: 0.031,
+    autoRedeposit: true,
+    outcome: '학비와 이사 자금을 말해 주면, 쓰는 날에 맞춰 예금 두 건으로 나눠요.',
+  },
+  {
     id: 'A',
     name: '김민준',
     age: 34,
@@ -30,7 +43,7 @@ export const PERSONAS: Persona[] = [
     maturityDate: '2026-11-21',
     annualRate: 0.031,
     autoRedeposit: true,
-    outcome: '6개월 뒤 전세 잔금에 만기를 맞춘 예금으로 가요. 투자 상품은 나오지 않아요.',
+    outcome: '내년 전세 잔금에 만기를 맞춘 예금으로 가요. 투자 상품은 나오지 않아요.',
   },
   {
     id: 'B',

@@ -28,6 +28,12 @@ describe('estimateHorizon', () => {
     expect(estimateHorizon({ timing: 'OVER_3Y' }).horizon).toBe('LONG');
     expect(estimateHorizon({ timing: 'UNKNOWN', useDate: 'unknown' })).toEqual({ horizon: 'UNKNOWN' });
   });
+
+  it('classifies a real use date by months from the demo today', () => {
+    expect(estimateHorizon({ timing: 'Y1_3', useDate: '2027-05-20' }).horizon).toBe('SHORT');
+    expect(estimateHorizon({ useDate: '2028-03-01' }).horizon).toBe('MID');
+    expect(estimateHorizon({ useDate: '2030-01-01' }).horizon).toBe('LONG');
+  });
 });
 
 describe('RULE_DEFAULT_REDEPOSIT', () => {

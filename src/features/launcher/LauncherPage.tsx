@@ -21,7 +21,7 @@ export function LauncherPage() {
   return (
     <div className="h-full overflow-y-auto bg-bg px-5 py-5">
       <p className="text-sm font-semibold text-primary">우리WON뱅킹</p>
-      <h1 className="mt-1 text-[26px] font-bold leading-8 text-textStrong">WON 만기 내비</h1>
+      <h1 className="mt-1 text-[26px] font-bold leading-8 text-textStrong">WON하는 만기</h1>
       <p className="mt-2 text-sm leading-6 text-textBody">
         만기 자금이 고객이 이해한 만큼만, 우리은행 상품 안에서 다음 자리를 찾게 하는 시연이에요.
       </p>

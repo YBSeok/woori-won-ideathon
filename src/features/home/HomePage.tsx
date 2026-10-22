@@ -27,7 +27,7 @@ export function HomePage() {
 
   const onTab = (id: TabId) => {
     if (id === 'home') return;
-    showToast('데모에서는 만기 내비만 이동할 수 있어요.');
+    showToast('데모에서는 WON하는 만기만 이동할 수 있어요.');
   };
 
   return (
@@ -54,7 +54,7 @@ export function HomePage() {
               <button
                 key={item.label}
                 type="button"
-                onClick={() => showToast('데모에서는 만기 내비만 이동할 수 있어요.')}
+                onClick={() => showToast('데모에서는 WON하는 만기만 이동할 수 있어요.')}
                 className="flex min-h-tap flex-col items-center justify-center gap-1 rounded-card bg-surface py-2 text-xs font-semibold text-textStrong shadow-card"
               >
                 <Icon size={18} className="text-primary" aria-hidden />
@@ -68,7 +68,7 @@ export function HomePage() {
         </div>
         <Card className="mt-2 border border-primary/20">
           <div className="flex items-center gap-2">
-            <Badge tone="ai">만기 내비</Badge>
+            <Badge tone="ai">WON하는 만기</Badge>
             <Badge tone="neutral">D-{dday}</Badge>
           </div>
           <p className="mt-2 text-[16px] font-bold leading-6 text-textStrong">

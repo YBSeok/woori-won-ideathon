@@ -53,6 +53,8 @@ export type Option = {
   feeRate?: number;
   reasons: string[];
   procedure: string;
+  guide: string;
+  proceedLabel: string;
 };
 
 export type ExcludedProduct = {
@@ -102,6 +104,115 @@ function toOption(product: CatalogProduct, reasons: string[], procedure: string,
     feeRate: product.feeRate,
     reasons,
     procedure,
+    guide: '',
+    proceedLabel: '이 상품으로 진행',
+  };
+}
+
+type ChoiceContext = {
+  purpose?: PurposeId;
+};
+
+function situationLine(name: string, horizon: Horizon, useDate?: string, purpose?: PurposeId): string {
+  const date = useDate ? formatKoreanDate(useDate) : '';
+  if (purpose === 'JEONSE') {
+    if (horizon === 'SHORT' && date) return `${name}님, 6개월 안에 전세·이사 자금이 필요하고 ${date}에 전세 잔금을 쓰신다고 하셨어요.`;
+    if (horizon === 'SHORT') return `${name}님, 6개월 안에 전세·이사 자금이 필요하다고 하셨어요.`;
+    if (date) return `${name}님, ${date}에 전세 잔금을 쓰신다고 하셨어요.`;
+    return `${name}님, 전세·이사 자금으로 쓰실 계획이라고 하셨어요.`;
+  }
+  if (purpose === 'TUITION') {
+    if (horizon === 'SHORT' && date) return `${name}님, 6개월 안에 학비가 필요하고 ${date}에 그 학비를 쓰신다고 하셨어요.`;
+    if (horizon === 'SHORT') return `${name}님, 6개월 안에 학비가 필요하다고 하셨어요.`;
+    if (date) return `${name}님, ${date}에 학비를 쓰신다고 하셨어요.`;
+    return `${name}님, 학비로 쓰실 계획이라고 하셨어요.`;
+  }
+  if (purpose === 'SPARE') {
+    if (horizon === 'LONG') return `${name}님, 3년 이상 쓰지 않아도 되는 여유자금이라고 하셨어요.`;
+    if (horizon === 'MID') return `${name}님, 1년에서 3년 정도는 급하지 않은 여유자금이라고 하셨어요.`;
+    if (horizon === 'SHORT') return `${name}님, 여유자금이지만 6개월 안에는 쓰실 수도 있다고 하셨어요.`;
+    return `${name}님, 여유자금으로 생각하시지만 언제 쓸지는 아직 정하지 않으셨어요.`;
+  }
+  if (purpose === 'RETIREMENT') {
+    if (horizon === 'LONG') return `${name}님, 노후 자금으로 3년 이상 두셔도 된다고 하셨어요.`;
+    if (horizon === 'MID') return `${name}님, 노후를 위해 1년에서 3년은 두실 수 있다고 하셨어요.`;
+    if (horizon === 'SHORT') return `${name}님, 노후 자금이지만 6개월 안에 필요하실 수도 있다고 하셨어요.`;
+    return `${name}님, 노후 자금으로 생각하시지만 시기는 아직 정하지 않으셨어요.`;
+  }
+  if (horizon === 'SHORT') return `${name}님, 이 돈을 6개월 안에 쓰신다고 하셨어요.`;
+  if (horizon === 'MID') return `${name}님, 이 돈을 1년에서 3년 사이에 쓰신다고 하셨어요.`;
+  if (horizon === 'LONG') return `${name}님, 이 돈을 3년 이상 두셔도 된다고 하셨어요.`;
+  return `${name}님, 이 돈을 언제 쓸지는 아직 정하지 않으셨어요.`;
+}
+
+function decisionLine(
+  persona: Pick<Persona, 'riskProfile'>,
+  horizon: Horizon,
+  hasInvest: boolean,
+): string {
+  if (hasInvest) {
+    return '오래 두셔도 되는 돈이고 투자성향이 맞아서, 재예치와 예금 옆에 투자 상품을 비교용으로만 넣었어요. 투자 상품은 오늘 가입이 끝나지 않고, 설명을 들은 뒤 하루를 더 두고 정해요. 아직 마음이 없으면 재예치를 그대로 진행하셔도 돼요.';
+  }
+  const depositOnly = persona.riskProfile === '안정형' || persona.riskProfile === '미진단';
+  if (horizon === 'SHORT' && depositOnly) {
+    return '곧 쓸 돈이라 예금만 골랐어요. 기본으로 잡혀 있는 재예치는 지금 금리와 조건을 그대로 이어 가는 선택이에요. 돈을 쓰시는 날에 만기를 맞추고 싶으면, 그 아래 예금을 고르시면 돼요.';
+  }
+  if (horizon === 'SHORT') {
+    return '곧 쓸 돈이라 가격이 움직일 수 있는 상품은 빼 두었어요. 재예치는 지금 조건을 그대로 이어 가는 기본 선택이에요. 쓰시는 날에 만기를 맞추고 싶으면 그 아래 예금을 고르시면 돼요.';
+  }
+  if (horizon === 'LONG' && depositOnly) {
+    return '오래 두실 수 있는 돈이지만, 성향을 보고 예금 안에서만 골랐어요. 재예치는 상품을 바꾸지 않는 선택이고, 아래 예금은 이자가 예금 안에서 다시 쌓이는 방식이에요. 바꾸실 필요가 없으면 재예치로 진행하시면 돼요.';
+  }
+  if (horizon === 'UNKNOWN') {
+    return '언제 쓸지 정해지기 전에는 조건을 바꾸지 않는 재예치가 기본이에요. 만기를 나중에 고르고 싶으시면 그 아래 예금을 보시면 돼요.';
+  }
+  return '재예치는 지금 예금을 같은 조건으로 이어 가는 기본 선택이에요. 기간에 더 맞는 예금이 있으면 그 아래에 두었어요. 예금은 어느 쪽이든 다음 화면에서 금액과 금리만 확인하면 끝나요.';
+}
+
+function narrateOption(
+  option: Option,
+  persona: Pick<Persona, 'riskProfile'>,
+  useDate: string | undefined,
+  purpose?: PurposeId,
+): { guide: string; proceedLabel: string } {
+  const date = useDate ? formatKoreanDate(useDate) : '';
+  if (option.kind === 'redeposit') {
+    const keep =
+      date && (purpose === 'JEONSE' || purpose === 'TUITION')
+        ? `${date}까지 통장을 옮기거나 새로 가입하지 않아도, 만기일에는 같은 예금이 다시 시작돼요.`
+        : '만기일이 되면 지금과 같은 조건의 정기예금이 다시 시작돼요. 상품을 새로 고르거나 서류를 더 내지 않으셔도 돼요.';
+    return {
+      guide: `${keep} 원금은 예금으로 남아 있고, 금리는 연 3.10%(예시)로 이어져요. 쓰는 날을 따로 맞추지 않으셔도 되면 이 선택이 가장 단순해요. 진행하시면 금액과 금리만 확인하고 끝나요.`,
+      proceedLabel: '이 조건으로 재예치할게요',
+    };
+  }
+  if (option.productId === 'super-deposit') {
+    const why =
+      date && purpose === 'JEONSE'
+        ? `${date}에 전세 잔금을 쓰신다고 하셔서, 만기를 그날에 맞출 수 있는 예금이에요.`
+        : date && purpose === 'TUITION'
+          ? `${date}에 학비를 쓰신다고 하셔서, 만기를 그날에 맞출 수 있는 예금이에요.`
+          : '만기일을 날짜 단위로 고를 수 있어서, 돈을 찾으시는 날과 만기를 맞추기 쉬워요.';
+    return {
+      guide: `${why} 중간에 해지하지 않아도 그 무렵 원금과 이자가 나오도록 기간을 정하는 방식이에요. 금리는 연 3.20%(예시)이고, 예금이라 원금이 보장돼요. 진행하시면 날짜와 금리만 확인하면 돼요.`,
+      proceedLabel: date ? `${date}에 맞춰 진행할게요` : '만기일을 맞춰 진행할게요',
+    };
+  }
+  if (option.productId === 'won-plus') {
+    return {
+      guide: '쓰시는 시점이 1년에서 3년 사이라고 하셔서, 시장금리가 움직일 때 그 변화를 반영하는 예금을 같이 골랐어요. 만기까지 두시는 동안 금리가 바뀌면 상품 금리에도 반영되는 구조예요. 예금이라 원금은 보장되고, 지금 보이는 금리는 연 3.05%(예시)예요. 지금 조건을 유지하고 싶으면 재예치를 고르시고, 이 예금으로 가시면 금액과 금리만 확인하면 끝나요.',
+      proceedLabel: '이 예금으로 진행할게요',
+    };
+  }
+  if (option.productId === 'duruduru') {
+    return {
+      guide: '3년 이상 두셔도 된다고 하셔서, 이자가 다음 이자의 밑천이 되는 회전복리 예금을 같이 제안해요. 찾는 날이 급하지 않을 때 이자가 예금 안에서 다시 굴러가는 방식이에요. 원금은 보장되고 금리는 연 3.25%(예시)예요. 상품을 바꾸기 망설여지시면 재예치가 그대로 있고, 이 예금으로 진행하면 조건 확인 한 번으로 끝나요.',
+      proceedLabel: '이 예금으로 이어갈게요',
+    };
+  }
+  return {
+    guide: `여유자금으로 오래 두신다고 하시고 투자성향이 ${persona.riskProfile}이라, 예금 옆에 ${option.name}도 비교용으로 넣었어요. 이 상품은 가격이 내리면 넣은 돈보다 적어질 수 있고, 예금자보호도 되지 않아요. 그래서 오늘은 설명과 이해도 확인까지만 하고, 내일 다시 보고 최종으로 정해요. 답이 없거나 마음이 바뀌면 재예치로 돌아가요.`,
+    proceedLabel: '설명부터 듣고 결정할게요',
   };
 }
 
@@ -117,7 +228,8 @@ export function getEligibleOptions(
   persona: Pick<Persona, 'riskProfile' | 'name'>,
   horizon: Horizon,
   useDate?: string,
-): { options: Option[]; appliedRules: RuleId[]; excluded: ExcludedProduct[] } {
+  context: ChoiceContext = {},
+): { options: Option[]; appliedRules: RuleId[]; excluded: ExcludedProduct[]; heard: string; decision: string } {
   const appliedRules: RuleId[] = ['RULE_DEFAULT_REDEPOSIT'];
   const excluded: ExcludedProduct[] = [];
   const profileLine = `투자성향은 ${persona.riskProfile}이에요.`;
@@ -227,7 +339,18 @@ export function getEligibleOptions(
     }
   }
 
-  return { options, appliedRules, excluded };
+  const narrated = options.map((option) => ({
+    ...option,
+    ...narrateOption(option, persona, useDate, context.purpose),
+  }));
+  const heard = situationLine(persona.name, horizon, useDate, context.purpose);
+  const decision = decisionLine(
+    persona,
+    horizon,
+    narrated.some((option) => option.kind === 'invest'),
+  );
+
+  return { options: narrated, appliedRules, excluded, heard, decision };
 }
 
 export function getDefaultSelectedId(options: Option[]): string {
@@ -346,7 +469,9 @@ export function buildEngineSnapshot(input: {
   investInquiry: boolean;
 }): EngineSnapshot {
   const horizon = estimateHorizon(input.answers);
-  const options = getEligibleOptions(input.persona, horizon.horizon, horizon.useDate);
+  const options = getEligibleOptions(input.persona, horizon.horizon, horizon.useDate, {
+    purpose: input.answers.purpose,
+  });
   return {
     horizon,
     timingText: input.answers.timing ? TIMING_LABEL[input.answers.timing] : '아직 없음',

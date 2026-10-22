@@ -147,6 +147,18 @@ describe('option bounds', () => {
   });
 });
 
+describe('choice narrative', () => {
+  it('explains a short-term jeonse choice in the customer’s own situation', () => {
+    const { heard, decision, options } = getEligibleOptions(personaA, 'SHORT', '2027-05-20', { purpose: 'JEONSE' });
+    expect(heard).toContain('전세');
+    expect(heard).toContain('2027년 5월 20일');
+    expect(decision).toContain('재예치');
+    expect(decision).not.toContain('펀드');
+    expect(options[0]?.proceedLabel).toContain('재예치');
+    expect(options.find((option) => option.productId === 'super-deposit')?.guide.length).toBeGreaterThan(40);
+  });
+});
+
 describe('annualEffect', () => {
   it('returns about 5.5 billion won at the default assumptions', () => {
     const result = annualEffect(EFFECT_DEFAULTS);

@@ -2,9 +2,10 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { AmountText, ExampleValue } from '../../components/ui/AmountText';
 import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
+import { ChatBubble } from '../../components/ui/ChatBubble';
 import { PrimaryButton } from '../../components/ui/Buttons';
 import { Screen } from '../../components/ui/Screen';
-import { estimateHorizon } from '../../engine/rules';
+import { estimateHorizon, getEligibleOptions } from '../../engine/rules';
 import { formatKoreanDate } from '../../lib/format';
 import { exampleInterest, getPersona } from '../../mock/personas';
 import { getProduct } from '../../mock/products';
@@ -22,6 +23,8 @@ export function ConfirmDepositPage() {
   if (product.kind === 'invest') return <Navigate to="/navi/invest/profile" replace />;
   const persona = getPersona(personaId);
   const estimated = estimateHorizon(answers);
+  const choice = getEligibleOptions(persona, estimated.horizon, estimated.useDate, { purpose: answers.purpose });
+  const chosen = choice.options.find((option) => option.productId === product.id);
   const interest = product.annualRate ? exampleInterest(persona.principal, product.annualRate) : 0;
   const matched = product.id === 'super-deposit' && estimated.useDate;
 
@@ -39,7 +42,9 @@ export function ConfirmDepositPage() {
       onBack={() => navigate('/navi/options')}
       footer={<PrimaryButton onClick={approve}>인증 완료(데모)</PrimaryButton>}
     >
-      <p className="text-sm leading-6 text-textBody">예·적금은 이 화면에서 한 번만 확인하면 끝나요.</p>
+      <ChatBubble role="ai">
+        {chosen?.guide ?? '고르신 예금의 금액과 금리만 확인하면 진행이 끝나요.'} 아래 숫자만 보고 승인하시면 돼요.
+      </ChatBubble>
       <Card className="mt-3 space-y-3">
         <div className="flex flex-wrap gap-1.5">
           <Badge tone={product.principalGuaranteed ? 'safe' : 'danger'}>원금보장</Badge>

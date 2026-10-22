@@ -5,7 +5,7 @@ const STEPS = ['만기 감지', '자금 용도', '선택지 비교', '승인 후
 
 export function ProgressSteps({ current }: { current: 1 | 2 | 3 | 4 | 5 }) {
   return (
-    <ol className="grid grid-cols-5 gap-1" aria-label="만기 내비 진행 단계">
+    <ol className="grid grid-cols-5 gap-1" aria-label="WON하는 만기 진행 단계">
       {STEPS.map((label, index) => {
         const step = (index + 1) as 1 | 2 | 3 | 4 | 5;
         const done = step < current;

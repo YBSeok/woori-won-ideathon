@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
+import { ChatBubble } from '../../components/ui/ChatBubble';
 import { PrimaryButton } from '../../components/ui/Buttons';
 import { Screen } from '../../components/ui/Screen';
-import { diagnosisStatus } from '../../engine/rules';
+import { diagnosisStatus, estimateHorizon, getEligibleOptions } from '../../engine/rules';
 import { DEMO_TODAY, getPersona } from '../../mock/personas';
 import { useDemoStore } from '../../store/useDemoStore';
 
@@ -14,8 +15,14 @@ export function ProfilePage() {
   const renewDiagnosis = useDemoStore((state) => state.renewDiagnosis);
   const markInvest = useDemoStore((state) => state.markInvest);
   const addConsent = useDemoStore((state) => state.addConsent);
+  const answers = useDemoStore((state) => state.answers);
+  const selectedProductId = useDemoStore((state) => state.selectedProductId);
   if (!personaId) return null;
   const persona = getPersona(personaId);
+  const estimated = estimateHorizon(answers);
+  const chosen = getEligibleOptions(persona, estimated.horizon, estimated.useDate, {
+    purpose: answers.purpose,
+  }).options.find((option) => option.productId === selectedProductId);
   const status = renewed
     ? { state: 'valid' as const, label: '유효', date: DEMO_TODAY }
     : { ...diagnosisStatus(persona.diagnosedAt, DEMO_TODAY), date: persona.diagnosedAt };
@@ -35,13 +42,14 @@ export function ProfilePage() {
             navigate('/navi/invest/explain');
           }}
         >
-          핵심 설명 보기
+          설명을 이어서 볼게요
         </PrimaryButton>
       }
     >
-      <p className="text-sm leading-6 text-textBody">
-        투자 상품은 여기서부터 단계가 늘어나요. 성향을 확인한 뒤에만 설명을 이어가요.
-      </p>
+      <ChatBubble role="ai">
+        {chosen?.guide ??
+          '투자 상품은 여기서부터 단계가 늘어나요. 성향을 확인한 뒤에만 설명을 이어가요.'}
+      </ChatBubble>
       <Card className="mt-3">
         <p className="text-[13px] text-textBody">진단 결과</p>
         <p className="mt-1 text-2xl font-bold text-textStrong">{persona.riskProfile}</p>

@@ -5,6 +5,7 @@ import { Badge } from '../../components/ui/Badge';
 import { BottomSheet } from '../../components/ui/BottomSheet';
 import { ExampleValue } from '../../components/ui/AmountText';
 import { Card } from '../../components/ui/Card';
+import { ChatBubble } from '../../components/ui/ChatBubble';
 import { PrimaryButton } from '../../components/ui/Buttons';
 import { Screen } from '../../components/ui/Screen';
 import { estimateHorizon, getEligibleOptions, type Option } from '../../engine/rules';
@@ -21,9 +22,10 @@ export function OptionsPage() {
   if (!personaId) return null;
   const persona = getPersona(personaId);
   const estimated = estimateHorizon(answers);
-  const result = getEligibleOptions(persona, estimated.horizon, estimated.useDate);
+  const result = getEligibleOptions(persona, estimated.horizon, estimated.useDate, {
+    purpose: answers.purpose,
+  });
   const selected = result.options.find((option) => option.productId === selectedProductId) ?? result.options[0];
-  const hasInvest = result.options.some((option) => option.kind === 'invest');
 
   const proceed = () => {
     if (!selected) return;
@@ -36,26 +38,28 @@ export function OptionsPage() {
       title="선택지 비교"
       step={3}
       onBack={() => navigate('/navi/chat')}
-      footer={<PrimaryButton onClick={proceed}>이 상품으로 진행</PrimaryButton>}
+      footer={<PrimaryButton onClick={proceed}>{selected?.proceedLabel ?? '이 상품으로 진행'}</PrimaryButton>}
       overlay={
         <BottomSheet open={Boolean(why)} title="왜 이 제안인가요?" onClose={() => setWhy(null)}>
           {why ? (
-            <ul className="space-y-2 pb-2">
-              {why.reasons.map((reason) => (
-                <li key={reason} className="rounded-button bg-bg px-3 py-3 text-sm leading-6 text-textBody">
-                  {reason}
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-3 pb-2">
+              <p className="text-sm leading-7 text-textStrong">{why.guide}</p>
+              <ul className="space-y-2">
+                {why.reasons.map((reason) => (
+                  <li key={reason} className="rounded-button bg-bg px-3 py-3 text-sm leading-6 text-textBody">
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
         </BottomSheet>
       }
     >
-      <p className="text-sm leading-6 text-textBody">
-        {hasInvest
-          ? '예금은 승인 한 번이면 끝나요. 투자 상품은 이해도 확인과 다음 날 숙려가 더 있어요.'
-          : '이번 조건에서는 예금 안에서만 골라요. 재예치가 기본으로 선택돼 있어요.'}
-      </p>
+      <div className="space-y-3">
+        <ChatBubble role="ai">{result.heard}</ChatBubble>
+        <ChatBubble role="ai">{result.decision}</ChatBubble>
+      </div>
       <div className="mt-3 space-y-3" role="radiogroup" aria-label="만기 자금 선택지">
         {result.options.map((option) => {
           const checked = option.productId === selected?.productId;
@@ -81,7 +85,9 @@ export function OptionsPage() {
                       <span className="text-[16px] font-bold text-textStrong">{option.name}</span>
                       {option.kind === 'redeposit' ? <Badge tone="safe">기본</Badge> : null}
                     </span>
-                    <span className="mt-1 block text-sm leading-6 text-textBody">{option.summary}</span>
+                    <span className="mt-1 block text-sm leading-6 text-textBody">
+                      {checked ? option.guide : option.summary}
+                    </span>
                     <span className="mt-2 flex flex-wrap items-center gap-1.5">
                       <ExampleValue>{option.rateText}</ExampleValue>
                       <Badge tone={option.principalGuaranteed ? 'safe' : 'danger'}>

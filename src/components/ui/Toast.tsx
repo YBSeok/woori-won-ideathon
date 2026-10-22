@@ -6,12 +6,12 @@ export function Toast({ message }: { message: string | null }) {
       {message ? (
         <motion.div
           role="status"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 8 }}
-          className="pointer-events-none absolute bottom-24 left-1/2 z-50 w-[calc(100%-40px)] -translate-x-1/2 rounded-button bg-textStrong px-4 py-3 text-center text-sm text-white"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center px-5"
         >
-          {message}
+          <p className="w-full rounded-button bg-textStrong px-4 py-3 text-center text-sm leading-6 text-white">{message}</p>
         </motion.div>
       ) : null}
     </AnimatePresence>

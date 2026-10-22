@@ -5,7 +5,7 @@ import { ChatBubble } from '../../components/ui/ChatBubble';
 import { Chip } from '../../components/ui/Chip';
 import { PrimaryButton } from '../../components/ui/Buttons';
 import { Screen } from '../../components/ui/Screen';
-import { needsHandoff } from '../../engine/rules';
+import { estimateHorizon, getEligibleOptions, needsHandoff } from '../../engine/rules';
 import {
   DATE_CHIPS,
   PURPOSE_CHIPS,
@@ -38,7 +38,11 @@ export function ChatPage() {
   const persona = getPersona(personaId);
 
   const finish = () => {
+    const latest = useDemoStore.getState().answers;
+    const estimated = estimateHorizon(latest);
+    const choice = getEligibleOptions(persona, estimated.horizon, estimated.useDate, { purpose: latest.purpose });
     appendMessage('ai', '말씀해 주신 내용으로 선택지를 골랐어요. 고르는 기준은 투자성향과 자금 기간이에요.');
+    appendMessage('ai', `${choice.heard} ${choice.decision}`);
     setChatStep('closing');
   };
 

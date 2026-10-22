@@ -19,7 +19,7 @@ export function DonePage() {
   const persona = getPersona(personaId);
   const product = getProduct(completion.productId);
   const estimated = estimateHorizon(answers);
-  const result = getEligibleOptions(persona, estimated.horizon, estimated.useDate);
+  const result = getEligibleOptions(persona, estimated.horizon, estimated.useDate, { purpose: answers.purpose });
   const chosen = result.options.find((option) => option.productId === product.id);
 
   const headline =
@@ -45,7 +45,7 @@ export function DonePage() {
     },
     {
       title: '제안 근거',
-      detail: chosen ? chosen.reasons.join(' ') : '재예치 기본 규칙을 적용했어요.',
+      detail: chosen?.guide ?? '재예치 기본 규칙을 적용했어요.',
     },
     {
       title: '적용된 규칙',
